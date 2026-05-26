@@ -123,6 +123,22 @@ class EmailMessage:
         regex_headers = [self._get_language_regex(language=language, regex_key='wrote_header') for language in self.languages]
         regex_headers += [self._get_language_regex(language=language, regex_key='from_header') for language in self.languages]
         regex_headers.append(f'({GENERIC_MAIL_SEPARATOR})')
+        # Gmail wraps long quote headers onto two lines, leaving the
+        # wrote-keyword alone ("<start> ... <email>\\n<keyword>:"). Per-language
+        # `wrote_header` patterns are line-anchored and miss this layout — assemble
+        # a cross-language wrap matcher from the `gmail_wrap_start` /
+        # `gmail_wrap_keyword` tokens of each configured language. Languages that
+        # don't set the tokens (e.g. ja, whose Gmail format differs) simply don't
+        # contribute, preserving the per-language opt-in.
+        starts = [self._get_language_regex(language=l, regex_key='gmail_wrap_start') for l in self.languages]
+        keywords = [self._get_language_regex(language=l, regex_key='gmail_wrap_keyword') for l in self.languages]
+        starts = '|'.join([s for s in starts if s])
+        keywords = '|'.join([k for k in keywords if k])
+        if starts and keywords:
+            regex_headers.append(
+                f'(^{QUOTED_MATCH_INCLUDE}(?:{starts})\\s[^\\n]+\\n[ \\t]*'
+                f'(?:{keywords})[ \\t]*(?:[^\\n:]*?)?:$)'
+            )
         regex_headers = '|'.join([header for header in regex_headers if header])
         self._header_regex = re.compile(regex_headers, flags=re.MULTILINE | re.IGNORECASE)
         logger.debug(f'Mail Header RegEx: "{self._header_regex.pattern!r}"')
