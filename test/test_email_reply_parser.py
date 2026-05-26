@@ -339,6 +339,26 @@ class EmailMessageTest(unittest.TestCase):
         self.assertNotIn("pozice je opět otevřená", mail.replies[0].body)
         self.assertIn("pozice je opět otevřená", mail.replies[1].body)
 
+    # ------------------------------------------------------------------
+    # Wrap-INSIDE-recipient variant: for verb-in-middle languages (sv, da,
+    # de) Gmail can also wrap inside the recipient's "<…>" bracket, putting
+    # the trailing ":" alone on the next line. Different shape, same cause.
+    # ------------------------------------------------------------------
+
+    def test_sv_wrapped_gmail_header_inside_recipient(self):
+        mail = self.get_email('email_sv_wrap', parse=True, languages=['sv'])
+        self.assertEqual(2, len(mail.replies))
+        self.assertIn("tack för meddelandet", mail.replies[0].body)
+        self.assertNotIn("tjänsten är öppen igen", mail.replies[0].body)
+        self.assertIn("tjänsten är öppen igen", mail.replies[1].body)
+
+    def test_de_wrapped_gmail_header_inside_recipient(self):
+        mail = self.get_email('email_de_wrap_inside', parse=True, languages=['de'])
+        self.assertEqual(2, len(mail.replies))
+        self.assertIn("danke für die Nachricht", mail.replies[0].body)
+        self.assertNotIn("die Stelle ist wieder offen", mail.replies[0].body)
+        self.assertIn("die Stelle ist wieder offen", mail.replies[1].body)
+
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO, stream=sys.stderr)
