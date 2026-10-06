@@ -123,13 +123,17 @@ class EmailMessage:
         regex_headers = [self._get_language_regex(language=language, regex_key='wrote_header') for language in self.languages]
         regex_headers += [self._get_language_regex(language=language, regex_key='from_header') for language in self.languages]
         regex_headers.append(f'({GENERIC_MAIL_SEPARATOR})')
-        # Gmail wraps long quote headers onto two lines, leaving the
-        # wrote-keyword alone ("<start> ... <email>\\n<keyword>:"). Per-language
-        # `wrote_header` patterns are line-anchored and miss this layout — assemble
-        # a cross-language wrap matcher from the `gmail_wrap_start` /
-        # `gmail_wrap_keyword` tokens of each configured language. Languages that
-        # don't set the tokens (e.g. ja, whose Gmail format differs) simply don't
-        # contribute, preserving the per-language opt-in.
+        # Gmail wraps long quote headers onto two lines at ~76 chars. Two shapes
+        # show up depending on where the recipient lands relative to the wrote-
+        # keyword; both are language-agnostic and built from each configured
+        # language's `gmail_wrap_start` / `gmail_wrap_keyword` tokens (languages
+        # that don't set them — e.g. ja — simply don't contribute).
+        # Per-language `wrote_header` patterns are line-anchored and miss these.
+        #   1) Wrap BEFORE keyword (en/nl/it/es/cs/da style — verb at end):
+        #        "<start> ... <recipient> <email>\\n<keyword>:"
+        #   2) Wrap INSIDE recipient (sv/da/de style — verb in middle, ":" at
+        #      end of line; wrap falls inside the recipient's "<...>" bracket):
+        #        "<start> ... <keyword> <name> <\\nemail>:"
         starts = [self._get_language_regex(language=l, regex_key='gmail_wrap_start') for l in self.languages]
         keywords = [self._get_language_regex(language=l, regex_key='gmail_wrap_keyword') for l in self.languages]
         starts = '|'.join([s for s in starts if s])
@@ -138,6 +142,10 @@ class EmailMessage:
             regex_headers.append(
                 f'(^{QUOTED_MATCH_INCLUDE}(?:{starts})\\s[^\\n]+\\n[ \\t]*'
                 f'(?:{keywords})[ \\t]*(?:[^\\n:]*?)?:$)'
+            )
+            regex_headers.append(
+                f'(^{QUOTED_MATCH_INCLUDE}(?:{starts})\\s[^\\n]*?'
+                f'(?:{keywords})[ \\t]+[^\\n:]*\\n[ \\t]*[^\\n:]*?:$)'
             )
         regex_headers = '|'.join([header for header in regex_headers if header])
         self._header_regex = re.compile(regex_headers, flags=re.MULTILINE | re.IGNORECASE)
